@@ -29,10 +29,7 @@
 
 #define SLEEP_TIME        60 * 60 * 1000 * 1000ULL
 
-#define WIFI_SSID         "kv682 4g"
-#define WIFI_PASS         "zxcvbnm1"
-#define OWM_API_KEY       "c2b7eca69ccd2f6872979804bd5f35f7"
-#define CITY_NAME         "Moscow"
+#include <secrets.h>
 
 #include <select_display.h>
 
