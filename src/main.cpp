@@ -29,6 +29,8 @@
 
 #define SLEEP_TIME        60 * 60 * 1000 * 1000ULL
 
+#define CITY_NAME         "Moscow"
+
 #include <secrets.h>
 
 #include <select_display.h>
