@@ -5,13 +5,13 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <ComfortaaNumbers88pt7b.h>
+#include <Fonts/FreeMonoBold24pt7b.h>
+#include <GxEPD2_4G_4G.h>
+// #include <GxEPD2_4G_BW.h>
 #include <HTTPClient.h>
 #include <SPI.h>
 #include <WiFi.h>
-// #include <GxEPD2_4G_4G.h>
-#include <Fonts/FreeMono9pt7b.h>
-#include <Fonts/FreeMonoBold24pt7b.h>
-#include <GxEPD2_4G_BW.h>
 
 #define EPD_MOSI GPIO_NUM_6
 #define EPD_SCK GPIO_NUM_7
@@ -47,6 +47,7 @@ enum class Status {
   Fetching,
   Connecting,
   Updated,
+  SyncTime,
   None
 };
 
@@ -57,6 +58,7 @@ static void goSleep() {
 
   esp_deep_sleep_enable_gpio_wakeup(1ULL << GPIO_NUM_4,
                                     ESP_GPIO_WAKEUP_GPIO_LOW);
+
   esp_sleep_enable_timer_wakeup(SLEEP_TIME);
   esp_deep_sleep_start();
 }
@@ -112,35 +114,36 @@ bool connectWifi() {
 }
 
 void render(Weather *weather) {
+
+  auto tempText = String(weather->temp);
+
   display.firstPage();
   do {
-    display.setFont(&FreeMonoBold24pt7b);
+    display.setFont(&ComfortaaNumbers88pt7b);
     display.setTextColor(GxEPD_BLACK);
-    display.setCursor(20, 150);
 
-    display.print(weather->temp);
-    display.print("°C");
+    int16_t tbx, tby;
+    uint16_t tbw, tbh;
+
+    display.getTextBounds(tempText, 80, -150, &tbx, &tby, &tbw, &tbh);
+    display.setCursor(tbx, tby);
+    display.print(tempText);
+
+    display.setFont(&FreeMonoBold24pt7b);
+    display.setCursor(tbx + tbw + 16, 115);
+    display.print("o");
 
   } while (display.nextPage());
 }
 
-void renderSplash() {
-  display.firstPage();
-  display.fillScreen(GxEPD_WHITE);
-  display.setCursor(20, 150);
-  display.print("Weather Board");
-  display.display(true);
-}
-
 void renderStatus(Status status) {
-  display.setFont(&FreeMono9pt7b);
 
   display.setTextColor(GxEPD_BLACK);
 
+  display.setPartialWindow(10, 10, 50, 50);
+
   display.firstPage();
   do {
-
-    display.fillScreen(GxEPD_WHITE);
 
     display.setCursor(0, 12);
 
@@ -148,29 +151,33 @@ void renderStatus(Status status) {
       display.print("WiFi connection failed");
 
     if (status == Status::Fetching)
-      display.print("Fetching weather data...");
+      display.print("Fetching weather data");
 
     if (status == Status::Connecting)
-      display.print("Connecting to WiFi...");
+      display.print("Connecting to WiFi");
 
     if (status == Status::Updated)
       display.print("Updated successfully");
+
+    if (status == Status::SyncTime)
+      display.print("Syncing time");
 
   } while (display.nextPage());
 }
 
 void mainRoutine() {
   // renderStatus(Status::Connecting);
-
   const bool wifiStatus = connectWifi();
 
   if (!wifiStatus) {
-    renderStatus(Status::WifiFailed);
+    // renderStatus(Status::WifiFailed);
     return;
   }
 
-  // renderStatus(Status::Fetching);
+  // renderStatus(Status::SyncTime);
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
 
+  // renderStatus(Status::Fetching);
   Weather *weather = fetchWeather();
 
   if (!weather) {
@@ -190,17 +197,15 @@ void setup() {
 
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
-  SPI.begin(EPD_SCK, -1, EPD_MOSI, EPD_CS);
+  SPI.begin(EPD_SCK, -1, EPD_MOSI, -1);
 
-  display.init(115200, false, 20, false);
+  display.init(115200);
 
   display.setRotation(2);
 
-  renderSplash();
-
   mainRoutine();
 
-  // goSleep();
+  goSleep();
 }
 
 void loop() {
@@ -210,7 +215,7 @@ void loop() {
   bool nowDown = (digitalRead(BUTTON_PIN) == LOW);
 
   if (nowDown && !wasDown) {
-    display.display(false);
+    mainRoutine();
   }
 
   wasDown = nowDown;
